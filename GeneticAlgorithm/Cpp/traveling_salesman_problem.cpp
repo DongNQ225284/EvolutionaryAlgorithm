@@ -31,7 +31,7 @@ public:
         for (size_t i = 0; i != N; i++) {
             for (double it : cost[i]) printf("%.2lf\t", it); cout << endl;
         }
-    }
+    }1```
 };
 
 class Individual {

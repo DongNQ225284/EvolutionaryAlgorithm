@@ -18,12 +18,12 @@ public:
 
 class Individual {
 private:
-    //nhiễm sắc thể
     vector<bool> chromosome; 
-    //giá trị thích nghi
     double fitness;
+    Problem problem;
+
 public:
-    void init(Problem environment) {
+    void init(Problem Problem) {
        
     }
     //tính giá trị thích nghi
