@@ -2,13 +2,14 @@
 #include <vector>
 #include <random>
 #include <algorithm>
+#include <cmath>
 
+#define rand() dis(gen)
 using namespace std;
 
 static random_device rd;
 static mt19937 gen(rd());
 
-//vấn đề
 class Problem {
 private:
     vector<double> profit;
@@ -16,18 +17,17 @@ private:
     double capacity;
 public:
     Problem() {
-        capacity = 0;
+        return;
     }
     Problem(vector<double> profit, vector<double> weight, double capacity) {
-        if (profit.empty() || weight.empty()) {
-            cout << "empty" << endl;
-            return;
-        }
         this->profit = profit;
         this->weight = weight;
         this->capacity = capacity;
     }
-    vector<double> getprofit() {
+    size_t getSize() {
+        return this->profit.size();
+    }
+    vector<double> getProfit() {
         return this->profit;
     }
     vector<double> getWeight() {
@@ -36,290 +36,291 @@ public:
     double getCapacity() {
         return this->capacity;
     }
-    size_t getLength() {
-        return this->profit.size();
-    }
-    void show() {
-        printf("profit: "); for (double it: profit) printf("\t%.2lf\t", it); cout << endl;
-        printf("weight: "); for (double it: weight) printf("\t%.2lf\t", it); cout << endl;
-        printf("capacity = %.2lf\n", capacity);
-    }
 };
+
+vector<bool> decode(vector<float> chromosome, Problem problem) {
+    vector<bool> solution;
+    for (float val : chromosome) {
+        solution.push_back(val < 0.5 ? 0 : 1);
+    }
+    return solution;
+}
+
+double get_fitness(vector<float> chromosome, Problem problem) {
+    vector<bool> solution = decode(chromosome, problem);
+    vector<double> profit = problem.getProfit();
+    vector<double> weight = problem.getWeight();
+    double capacity = problem.getCapacity();
+    double total_profit = 0;
+    double total_weight = 0;
+    for (size_t i = 0; i != solution.size(); i++) {
+        if (solution[i]) {
+            total_profit += profit[i];
+            total_weight += weight[i];
+        }
+    }
+    if (total_weight > capacity) return 0;
+    else return total_profit;
+}
 
 class Individual {
 private:
-    //nhiễm sắc thể
-    vector<bool> chromosome; 
-    //giá trị thích nghi
+    vector<float> chromosome; 
     double fitness;
 public:
-    void init(Problem environment) {
-        size_t length = environment.getLength(); 
-        uniform_int_distribution<int> dis(0, 1);
-        for (size_t i = 0; i != length; i++) {
-            float r = dis(gen);
-            chromosome.push_back(r);
+    void genIndi(Problem problem) {
+        uniform_real_distribution<float> dis(0.0, 1.0);
+        size_t n = problem.getSize();
+        for (size_t i = 0; i != n; i++) {
+            chromosome.push_back(rand());
         }
     }
-    //tính giá trị thích nghi
-    void calculateFitness(Problem environment) {
-        double total_profit = 0;
-        double total_weight = 0;
-        size_t length = environment.getLength();
-        vector<double> profit = environment.getprofit();
-        vector<double> weight = environment.getWeight();
-        for (size_t i = 0; i != length; i++) {
-            if (chromosome[i]) {
-                total_profit += profit[i];
-                total_weight += weight[i];
-            }
-        }
-        if (total_weight > environment.getCapacity()) {
-            this->fitness = 0;
-        } else {
-            this->fitness = total_profit; 
-        } 
+    void cal_fitness(Problem problem) {
+        this->fitness = get_fitness(this->chromosome, problem);
     }
-
-    //lấy chiều dài của nhiễn sắc thể
     size_t getLength() {
         return this->chromosome.size();
     }
-    //lấy nhiễm sắc thể
-    vector<bool> getChromosome() {
+    vector<float> getChromosome() {
         return this->chromosome;
     }
-    void setChromosome(vector<bool> chromosome) {
+    void setChromosome(vector<float> chromosome) {
         this->chromosome = chromosome;
     }
-    //lấy giá trị thích nghi
     double getFitness() {
         return this->fitness;
     }
-    //hiển thị thông tin của cá thể
     void show() {
         printf("fitness = %.2lf\t\t", fitness);
-        printf("chormosome: { "); for (bool it : chromosome) printf("%d ", it); printf("}\n");
+        printf("chormosome: { "); for (float it : chromosome) printf("%.2lf ", it); printf("}\n");
     }
 };
 
-//toán tử lai ghép, sử dụng lai ghép đồng nhất uniform crossover, xác suất hoán đổi là p_c
-vector<Individual> crossover(Individual p1, Individual p2, float p_c = 0.2) {
+//simulated binary crossover
+pair<Individual, Individual> crossover(Individual parent1, Individual parent2, double eta = 2.0) {
     uniform_real_distribution<float> dis(0.0, 1.0);
-    vector<Individual> offspring;
-    size_t length = p1.getLength();
-    
-    vector<bool> chromosome1 = p1.getChromosome();
-    vector<bool> chromosome2 = p2.getChromosome();
-
-    for (size_t i = 0; i != length; i++) {
-        float r_c = dis(gen);
-        if (r_c <= p_c) {
-            swap(chromosome1[i], chromosome2[i]);
-        }    
+    float r = rand();
+    double beta;
+    if (r <= 0.5) {
+        beta = pow(2*r, 1.0/(eta + 1.0));
+    } else {
+        beta = pow(0.5/(1.0 - r), 1.0/(eta + 1.0));
     }
-
+    vector<float> p1 = parent1.getChromosome();
+    vector<float> p2 = parent2.getChromosome();
+    vector<float> c1(p1.size());
+    vector<float> c2(p2.size());
+    for (size_t i = 0; i != p1.size(); i++) {
+        c1[i] = float(0.5 * ((1 + beta) * p1[i] + (1 - beta) * p2[i]));
+        c2[i] = float(0.5 * ((1 - beta) * p1[i] + (1 + beta) * p2[i]));
+    }
     Individual off1, off2;
-    off1.setChromosome(chromosome1);
-    off2.setChromosome(chromosome2);
-    
-    offspring.push_back(off1);
-    offspring.push_back(off2);
-    return offspring;
+    off1.setChromosome(c1);
+    off2.setChromosome(c2);
+    return make_pair(off1, off2);
 }
 
-//toán tử đột biến sử dụng đột biến đảo bit với xác suất đột biến mỗi bit là p_m
-void mutation(Individual& member, float p_m = 0.2) {
+//polynomail mutaion
+void mutation(Individual& indi, double eta = 20) {
     uniform_real_distribution<float> dis(0.0, 1.0);
-    vector<bool> chromosome = member.getChromosome();
-    size_t length = member.getLength();
-    for (size_t i = 0; i != length; i++) {
-        float r_m = dis(gen);
-        if (r_m <= p_m) {
-            chromosome[i] = !chromosome[i];
+    vector<float> chr = indi.getChromosome();
+    double delta;
+    for (size_t i = 0; i != chr.size(); i++) {
+        double mu = rand();
+        if (mu <= 0.5) {
+            delta = pow(2 * mu, 1.0/(eta + 1)) - 1;
+            chr[i] = (float)(chr[i] + delta * chr[i]);
+            chr[i] = max(min(chr[i], 1.0f), 0.0f);
+        } else {
+            delta = 1 - pow(2 - 2 * mu, 1.0/(eta + 1));
+            chr[i] = (float)(chr[i] + delta * (1 - chr[i]));
+            chr[i] = max(min(chr[i], 1.0f), 0.0f);
         }
     }
-    member.setChromosome(chromosome);
+    indi.setChromosome(chr);
+    return;
 }
 
 class Population {
 private:
-    //danh sách cá thể trong quần thể
-    vector<Individual> list;
-    //cá thể ưu tú
-    vector<Individual> parent;
-    //môi trường sống
-    Problem environment;
+    vector<Individual> list_indi;
+    Problem problem;
+    size_t pop_size;
 public:
-    Population(Problem environment) {
-        this->environment = environment;
+    Population(size_t pop_size, Problem problem) {
+        this->problem = problem;
+        this->pop_size = pop_size;
+    }
+    void genPop() {
+        for (size_t i = 0; i != pop_size; i++) {
+            Individual indi;
+            indi.genIndi(problem);
+            indi.cal_fitness(problem);
+            list_indi.push_back(indi);
+        }
+    }
+
+    size_t getSize() {
+        return this->pop_size;
+    }
+
+    vector<Individual> getList() {
+        return this->list_indi;
+    }
+    void setList(vector<Individual> list) {
+        this->list_indi = list;
     }
     
-    //khởi tạo quần thể với n cá thể
-    void init(size_t n) {
-        for (size_t i = 0; i != n; i++) {
-            Individual member;
-            member.init(environment);
-            member.calculateFitness(environment);
-            list.push_back(member);
-        }
-    }
-    //lấy kích thước của quần thể
-    size_t getSize() {
-        return this->list.size();
-    }
-    //lấy danh sách các cá thể
-    vector<Individual> getList() {
-        return this->list;
-    }
-    //thêm một cá thể vào trong danh sách
-    void append(Individual member) {
-        this->list.push_back(member);
-    }
-    //lấy danh sách cha mẹ, nếu rỗng, lấy ra number_of_parent cá thể ngẫu nhiên
-    vector<Individual> getParent(size_t number_of_parent = 2) {
-        if (!parent.empty()) return this->parent;
-        size_t N = list.size();
-        uniform_int_distribution<size_t> dis(0, N - 1);
-        vector<bool> mark(N, false);
-        while (number_of_parent > 0) {
-            size_t idx = dis(gen);
-            if (!mark[idx]) {
-                parent.push_back(list[idx]);
-                mark[idx] = true;
-                number_of_parent--;
-            }
-        }
-        return parent;
-    } 
-    //chọn lọc sinh tồn, loại bỏ để còn n cá thể, sử dụng chọn lọc xếp hạng
-    void selection(size_t n, size_t number_of_parent = 2) {
-        uniform_real_distribution<float> dis(0.0, 1.0);
-        size_t N = list.size();
-        vector<size_t> rank;
-        for (int i = 0; i != N; i++) {
-            rank.push_back(i);
-        }
-        sort(rank.begin(), rank.end(), [&] (size_t a, size_t b) {
-            return list[a].getFitness() < list[b].getFitness();
-        });
-        vector<double> S;
-        S.push_back(1);
-        for (size_t i = 1; i != N; i++) {
-            S.push_back(S[i - 1] + i + 1);
-        }
-        double sum = S[N - 1];
-        vector<bool> mark(N, false);
-        vector<Individual> new_generation;
-        parent.clear();
-        while (n > 0) {
-            float r = dis(gen);
-            size_t idx = upper_bound(S.begin(), S.end(), r * sum) - S.begin();
-
-            if (!mark[idx]) {
-                new_generation.push_back(list[rank[idx]]);
-                if (number_of_parent > 0) {
-                    parent.push_back(list[rank[idx]]);
-                    number_of_parent--;
-                }
-                mark[idx] = true;
-                n--;
-            }
-        }
-        list = new_generation;
-    }
-    //hiển thị thông tin về quần thể
     void show() {
-        cout << "size of populaiton: " << list.size() << endl;
-        for (size_t i = 0; i != list.size(); i++) {
-            list[i].show();
+        cout << "size of populaiton: " << pop_size << endl;
+        for (Individual indi : list_indi) {
+            indi.show();
         }
     }
 };
 
-void print(vector<Individual> list) {
-    for (size_t i = 0; i != list.size(); i++) {
-        list[i].show();
+pair<Individual, Individual> choice(vector<Individual> list, size_t k = 4) {
+    uniform_int_distribution<size_t> dis(0, list.size() - 1);
+    vector<Individual> tour1, tour2;
+    vector<bool> mark(list.size(), false);
+    size_t num = k;
+    while(num > 0) {
+        size_t p = rand();
+        if (!mark[p]) {
+            tour1.push_back(list[p]);
+            mark[p] = true;
+            num--;
+        }
     }
+    mark.assign(list.size(), false);
+    num = k;
+    while(num > 0) {
+        size_t p = rand();
+        if (!mark[p]) {
+            tour2.push_back(list[p]);
+            mark[p] = true;
+            num--;
+        }
+    }
+    Individual x = tour1[0];
+    for (Individual indi : tour1) {
+        if (x.getFitness() < indi.getFitness()) {
+            x = indi;
+        }
+    }
+    Individual y = tour2[0];
+    for (Individual indi : tour2) {
+        if (y.getFitness() < indi.getFitness()) {
+            y = indi;
+        }
+    }
+    return make_pair(x, y);
 }
-//Thuật toán GA trả về cá thể tốt nhất
-Individual geneticalgorithm(Problem environment, //môi trường sống
-                            size_t number_of_individuals, //số lượng cá thể trong môi trường
-                            size_t number_of_generation, //số lượng thế hệ
+
+vector<Individual> nextGen(vector<Individual> list, size_t pop_size) {
+    sort(list.begin(), list.end(), [&](Individual a, Individual b) {
+        return a.getFitness() > b.getFitness();
+    });
+    vector<Individual> newList;
+    for (size_t i = 0; i != pop_size; i++) {
+        newList.push_back(list[i]);
+    }
+    return newList;
+}
+
+pair<vector<double>, Individual> GA(Problem problem, //môi trường sống
+                            size_t pop_size, //số lượng cá thể trong môi trường
+                            size_t max_gen, //số lượng thế hệ
                             float p_c, //tỷ lệ lai tạo
                             float p_m //tỷ lệ đột biến
                             )  
 {
     // char chr;    
     uniform_real_distribution<float> dis(0.0, 1.0);
-    Individual best;
-    Population population(environment);
-    population.init(number_of_individuals);
-
-    while (number_of_generation > 0) {
-        vector<Individual> parent = population.getParent(2);
-        // cout << "population:" << endl;
-        // population.show();
-        // cout << "parent:" << endl;
-        // print(parent);
-        // cin >> chr;
-        size_t number_of_offspring = number_of_individuals;
-        while (number_of_offspring > 0) {
-            float r_c = dis(gen);
-            if (r_c <= p_c) {
-                vector<Individual> offspring = crossover(parent[0], parent[1], p_c);
-                float r_m = dis(gen);
-                if (r_m <= p_m) {
-                    mutation(offspring[0]);
-                    mutation(offspring[1]);
-                }
-                offspring[0].calculateFitness(environment);
-                offspring[1].calculateFitness(environment);
-                // cout << "offspring: " << endl;
-                // print(offspring);
-                // cin >> chr;
-                population.append(offspring[0]);
-                number_of_offspring--;
-
-                population.append(offspring[1]);
-                number_of_offspring--;
+    Population pop(pop_size, problem);
+    pop.genPop();
+    vector<double> history;
+    for (size_t i = 0; i != max_gen; i++) {
+        vector<Individual> child;
+        while (child.size() < pop_size) {
+            pair<Individual, Individual> parent = choice(pop.getList());
+            pair<Individual, Individual> off;
+            if (rand() <= p_c) {
+                off = crossover(parent.first, parent.second);
+                off.first.cal_fitness(problem);
+                off.second.cal_fitness(problem);
+                child.push_back(off.first);
+                child.push_back(off.second);
+            }
+            if (rand() <= p_m) {
+                mutation(parent.first);
+                mutation(parent.second);
+                parent.first.cal_fitness(problem);
+                parent.second.cal_fitness(problem);
+                child.push_back(parent.second);
+                child.push_back(parent.second);   
             }
         }
-        // cout << "population:" << endl;
-        // population.show();
-        // cin >> chr;
-        population.selection(number_of_individuals);
-        number_of_generation--;
-    }
-    //chọn ra cá thể có giá trị thích nghi tốt nhất
-    vector<Individual> list = population.getList();
-    best = list[0];
-    for (size_t i = 1; i != list.size(); i++) {
-        if (list[i].getFitness() > best.getFitness()) {
-            best = list[i];
+        vector<Individual> list = pop.getList();
+        for (Individual indi : child) {
+            list.push_back(indi);
         }
-    } 
-    return best;
+        list = nextGen(list, pop_size);
+        pop.setList(list);
+        history.push_back(list[0].getFitness());
+    }
+    vector<Individual> list = pop.getList();
+    return make_pair(history, list[0]);
 }
 
+
 int main() {
-    vector<double> profit = {5, 7, 6, 8};
-    vector<double> weight = {7, 4, 3, 4};
-    double capacity = 9;
+    //setup
+    // uniform_real_distribution<double> dis(0.0, 20.0);
+    // size_t N = 10;
+    // vector<double> profit, weight;
+    // for (size_t i = 0; i!= N; i++) {
+    //     profit.push_back(rand());
+    //     weight.push_back(rand());
+    // }
+    // double capacity = rand();
 
-    Problem KnapsackProblem(profit, weight, capacity);
-    size_t number_of_individuals = 10;
-    size_t number_of_generation = 1000;
-    float p_c = 0.2;
-    float p_m = 0.3;
+    vector<double> profit = {3, 6, 8, 10, 15};
+    vector<double> weight = {2, 3, 3, 5, 8};
+    double capacity = 10;
 
-    Individual best = geneticalgorithm(KnapsackProblem, number_of_individuals, number_of_generation, p_c, p_m);
+    Problem problem(profit, weight, capacity);
+    size_t pop_size = 200;
+    size_t max_gen = 500;
+    float Pc = 0.8;
+    float Pm = 0.2;
     
-    cout << "Knapsack Problem:" << endl;
-    KnapsackProblem.show();
+    //start
+    pair<vector<double>, Individual> result;
+    result = GA(problem, pop_size, max_gen, Pc, Pm);
+
+    vector<double> fitness_history = result.first;
+    Individual best = result.second;
+
+    for (size_t i = 0; i != fitness_history.size(); i++) {
+        printf("Generation %d, bestfitness = %lf\n", i, fitness_history[i]);
+    }
+
+    vector<bool> solution = decode(best.getChromosome(), problem);
+    double total_weight = 0;
+    for (size_t i = 0; i != solution.size(); i++) {
+        if (solution[i]) total_weight += weight[i];
+    }
     cout << endl;
-    cout << "Solution:" << endl;
-    best.show();
+    //show
+    printf("Problem:\n");
+    printf("profit:\t"); for (double val : profit) printf("%.2lf\t", val); cout << endl;
+    printf("weight:\t"); for (double val : weight) printf("%.2lf\t", val); cout << endl;
+    printf("capacity = %.2lf:\n", capacity);
+    cout << endl;
+    printf("solution: "); for (int val : solution) printf("%d\t", val); cout << endl;
+    printf("total_profit = %.2lf\n", best.getFitness());
+    printf("total_weight = %.2lf\n", total_weight);
     
     return 0;
 }
